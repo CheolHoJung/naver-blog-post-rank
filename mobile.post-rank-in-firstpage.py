@@ -1,6 +1,4 @@
-import requests
 import sys
-import selenium
 
 from os import system 
 from bs4 import BeautifulSoup
@@ -10,29 +8,46 @@ from datetime import datetime
 
 system('cls')
 
-len = int(sys.argv[2]) if (len(sys.argv) > 2) else 10
-driver = webdriver.Chrome()
-driver.get('https://m.blog.naver.com/SectionPostSearch.nhn?searchValue=' + sys.argv[1])
+argSize = len(sys.argv)
+lastArg = sys.argv[argSize - 1]
 
-def time_check():
+if lastArg.isdigit():
+    len = int(lastArg)
+    keywords = sys.argv[1 : argSize - 1]
+else:
+    len = 10
+    keywords = sys.argv[1 : ]
+
+def getTime() :
     now = datetime.now()
-    now_time = f"<{now.year}. {now.month}. {now.day} - {now.hour}:{now.minute} 기준 네이버 실시간 블로그 포스팅 순위 ({sys.argv[1]})>"
-
+    now_time = f"{now.year}. {now.month}. {now.day}"
     return now_time
 
+def getBlogIdInQueryString(queryString) :
+	return next(
+		map(lambda qs: qs.split("=")[1],
+		filter(lambda qs: qs.split("=")[0] == "blogId", queryString)))
 
-# html = requests.get('https://m.blog.naver.com/SectionPostSearch.nhn?searchValue=' + sys.argv[1]).text
-html = driver.page_source
-soup = BeautifulSoup(html, 'lxml')
-rank_list = soup.select('.list_wrap .list_section .list')[ : len]
-ids = ""
+searchTime = getTime()
 
-print(time_check() + "\n")
-for rank, post in enumerate(rank_list, 1):
-    head = post.select(".meta_head .dsc .td")
-    writer = head[0].find("a")
-    id = writer['href'].replace("/", "")
-    ids += id + ';'
-    print(rank, writer.find("span").text, '(' + id + ')', '\n')
+result = "%-20s%-10s%-20s\n" % ("날짜", "키워드", "아이디")
+driver = webdriver.Chrome()
 
-print("아이디 집계 (순위 오름차순)\n", ids, '\n')
+for keyword in keywords:
+	driver.get('https://m.blog.naver.com/SectionPostSearch.nhn?searchValue=' + keyword)
+	driver.implicitly_wait(3)
+	sleep(3)
+	html = driver.page_source
+	soup = BeautifulSoup(html, 'html.parser')
+	posts = soup.select('.list_wrap .item .postlist')[ : len]
+
+	for post in posts:
+		href = post.find("a")["href"]
+		queryString = href.split("?")[1].split("&")
+		id = getBlogIdInQueryString(queryString)
+		result += "%-20s%-10s%-20s\n" % (searchTime, keyword, id)
+
+driver.quit()
+print(result)
+
+
